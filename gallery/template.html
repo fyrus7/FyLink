@@ -37,22 +37,17 @@ button{
 
 .gallery{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
-  grid-auto-rows:160px;
-  gap:6px;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:8px;
   padding:8px;
 }
 
 .gallery img{
   width:100%;
-  height:100%;
-  object-fit:cover;
-  cursor:pointer;
-}
-
-/* Landscape image */
-.gallery img.landscape{
-  grid-column:span 2;
+  height:auto;
+  display:block;
+  object-fit:contain;
+  background:#000;
 }
 
 footer{
