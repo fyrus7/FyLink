@@ -120,7 +120,7 @@ const syncBtn = document.getElementById("syncBtn");
 let modalImageIds = [];
 let currentIndex = 0;
 
-// ------------------- Load ALL images -------------------
+// ------------------- Load ALL images at first -------------------
 async function loadAllImages() {
   nextPageToken = null;
   gallery.innerHTML = "";
@@ -131,6 +131,7 @@ async function loadAllImages() {
   } while (nextPageToken);
 }
 
+// ------------------- Fetch one page -------------------
 async function loadImagesPage() {
   const query = encodeURIComponent(
     `'${FOLDER_ID}' in parents and mimeType contains 'image/'`
@@ -174,7 +175,7 @@ function addImage(file){
   };
 
   img.onclick = ()=>openModal(file.id);
-  gallery.prepend(img); // new images on top
+  gallery.prepend(img); // prepend new image on top
 }
 
 // ------------------- Modal popup -------------------
@@ -184,30 +185,36 @@ function openModal(fileId){
   modal.style.display = "flex";
 }
 
-// Close modal on click
-modal.onclick = ()=> modal.style.display="none";
+// Close modal on click outside image
+modal.onclick = (e)=>{
+  if(e.target === modal) modal.style.display="none";
+}
 
-// ------------------- Modal left/right arrow -------------------
+// ------------------- Modal left/right navigation -------------------
 document.addEventListener("keydown", e=>{
   if(modal.style.display !== "flex") return;
 
-  if(e.key === "ArrowRight"){ // next
+  if(e.key === "ArrowRight"){ // next image
     currentIndex = (currentIndex + 1) % modalImageIds.length;
     modalImg.src = `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
   }
-  if(e.key === "ArrowLeft"){ // previous
+  if(e.key === "ArrowLeft"){ // previous image
     currentIndex = (currentIndex - 1 + modalImageIds.length) % modalImageIds.length;
     modalImg.src = `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
   }
-  if(e.key === "Escape"){
+  if(e.key === "Escape"){ // close modal
     modal.style.display = "none";
   }
 });
 
 // ------------------- SYNC button -------------------
-syncBtn.onclick = loadAllImages;
+// Append only new images on top
+syncBtn.onclick = async ()=>{
+  nextPageToken = null;
+  await loadImagesPage(); // only prepend new images
+};
 
-// ------------------- First load -------------------
+// ------------------- Initial load -------------------
 loadAllImages();
 </script>
 
