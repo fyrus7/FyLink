@@ -107,13 +107,31 @@ footer{
 </div>
 
 <script>
-const API_KEY   = "AIzaSyCyL4jxLN9w87WG20GqeEIAaUCupjKmn8U";
+cconst API_KEY   = "AIzaSyCyL4jxLN9w87WG20GqeEIAaUCupjKmn8U";
 const FOLDER_ID = "1qEfxwXgPcvEPRlBKNNecsHaqFSRrAjTE";
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 100; // max per request
 
 let nextPageToken = null;
+const gallery = document.getElementById("gallery");
+const modal = document.getElementById("modal");
+const modalImg = document.getElementById("modalImg");
+const syncBtn = document.getElementById("syncBtn");
 
-async function loadImages(){
+let modalImageIds = [];
+let currentIndex = 0;
+
+// ------------------- Load ALL images -------------------
+async function loadAllImages() {
+  nextPageToken = null;
+  gallery.innerHTML = "";
+  modalImageIds = [];
+
+  do {
+    await loadImagesPage();
+  } while (nextPageToken);
+}
+
+async function loadImagesPage() {
   const query = encodeURIComponent(
     `'${FOLDER_ID}' in parents and mimeType contains 'image/'`
   );
@@ -126,43 +144,71 @@ async function loadImages(){
     `&fields=nextPageToken,files(id,name)` +
     `&key=${API_KEY}`;
 
-  if(nextPageToken){
-    url += `&pageToken=${nextPageToken}`;
-  }
+  if (nextPageToken) url += `&pageToken=${nextPageToken}`;
 
   const res = await fetch(url);
   const data = await res.json();
 
   nextPageToken = data.nextPageToken || null;
 
-data.files.forEach(file=>{
+  data.files.forEach(file => addImage(file));
+}
+
+// ------------------- Add image to gallery -------------------
+function addImage(file){
+  // Skip if already exists
+  if(document.querySelector(`#img-${file.id}`)) return;
+
+  modalImageIds.unshift(file.id); // newest on top
+
   const img = document.createElement("img");
-  img.src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w1200`;
+  img.id = `img-${file.id}`;
+  img.src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w500`; // fast thumbnail
 
   img.onload = ()=>{
     if(img.naturalWidth > img.naturalHeight){
       img.classList.add("landscape");
-    }else{
+    } else {
       img.classList.add("portrait");
     }
   };
 
   img.onclick = ()=>openModal(file.id);
-
-  gallery.prepend(img);
-});
+  gallery.prepend(img); // new images on top
 }
 
+// ------------------- Modal popup -------------------
 function openModal(fileId){
+  currentIndex = modalImageIds.indexOf(fileId);
   modalImg.src = `https://lh3.googleusercontent.com/d/${fileId}`;
   modal.style.display = "flex";
 }
 
+// Close modal on click
 modal.onclick = ()=> modal.style.display="none";
-syncBtn.onclick = loadImages;
 
-// first load
-loadImages();
+// ------------------- Modal left/right arrow -------------------
+document.addEventListener("keydown", e=>{
+  if(modal.style.display !== "flex") return;
+
+  if(e.key === "ArrowRight"){ // next
+    currentIndex = (currentIndex + 1) % modalImageIds.length;
+    modalImg.src = `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
+  }
+  if(e.key === "ArrowLeft"){ // previous
+    currentIndex = (currentIndex - 1 + modalImageIds.length) % modalImageIds.length;
+    modalImg.src = `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
+  }
+  if(e.key === "Escape"){
+    modal.style.display = "none";
+  }
+});
+
+// ------------------- SYNC button -------------------
+syncBtn.onclick = loadAllImages;
+
+// ------------------- First load -------------------
+loadAllImages();
 </script>
 
 </body>
