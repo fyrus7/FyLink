@@ -93,7 +93,6 @@ footer{
   z-index:10;
 }
 
-/* slider untuk 3 image */
 .slider{
   display:flex;
   width:300%;
@@ -242,6 +241,7 @@ function openModal(id){
   document.body.classList.add("modal-open");
 }
 
+/* ================= CLICK OUTSIDE MODAL ================= */
 modal.addEventListener("click", e=>{
   if(e.target === modal){
     modal.style.display = "none";
