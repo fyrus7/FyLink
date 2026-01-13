@@ -242,12 +242,12 @@ function openModal(id){
   document.body.classList.add("modal-open");
 }
 
-modal.onclick = e=>{
+modal.addEventListener("click", e=>{
   if(e.target === modal){
     modal.style.display = "none";
     document.body.classList.remove("modal-open");
   }
-};
+});
 
 /* ================= KEYBOARD ================= */
 document.addEventListener("keydown", e=>{
