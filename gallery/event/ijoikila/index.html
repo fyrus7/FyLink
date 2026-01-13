@@ -1,5 +1,166 @@
-a  const m = name.match(/\d+/g);
-  return m ? parseInt(m[m.length - 1], 10) : 0;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FyLinx Gallery</title>
+
+<style>
+/* ================= BASE ================= */
+body{
+  margin:0;
+  font-family:system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background:#fff;
+  color:#111;
+}
+
+body.modal-open{
+  overflow:hidden;
+}
+
+/* ================= HEADER ================= */
+header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 16px;
+  border-bottom:1px solid #eee;
+}
+
+header h1{
+  font-size:14px;
+  margin:0;
+  letter-spacing:1px;
+}
+
+header span{
+  font-size:12px;
+  color:#777;
+}
+
+/* ================= GALLERY ================= */
+.gallery{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:4px;
+  padding:6px;
+}
+
+@media(min-width:600px){
+  .gallery{ grid-template-columns:repeat(4,1fr); }
+}
+@media(min-width:1024px){
+  .gallery{ grid-template-columns:repeat(6,1fr); }
+}
+
+.gallery img,
+.skeleton{
+  width:100%;
+  aspect-ratio:1/1;
+  border-radius:4px;
+  object-fit:cover;
+}
+
+/* ================= SKELETON ================= */
+.skeleton{
+  background:#eee;
+  animation:pulse 1.4s infinite;
+}
+
+@keyframes pulse{
+  0%{opacity:.6}
+  50%{opacity:1}
+  100%{opacity:.6}
+}
+
+/* ================= FOOTER ================= */
+footer{
+  text-align:center;
+  font-size:11px;
+  padding:14px;
+  color:#999;
+}
+
+/* ================= MODAL ================= */
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.92);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  overflow:hidden;
+  z-index:10;
+}
+
+/* slider untuk 3 image */
+.slider{
+  display:flex;
+  width:300%;
+  height:100%;
+  transform:translateX(-100%);
+}
+
+.slider img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  flex-shrink:0;
+}
+
+/* ================= SENTINEL ================= */
+#sentinel{ height:1px; }
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>FyLinx</h1>
+  <span>wedding gallery</span>
+</header>
+
+<div class="gallery" id="gallery"></div>
+<div id="sentinel"></div>
+
+<footer>© FyLinx</footer>
+
+<!-- MODAL -->
+<div class="modal" id="modal">
+  <div class="slider" id="slider">
+    <img id="prevImg">
+    <img id="currentImg">
+    <img id="nextImg">
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const API_KEY   = "AIzaSyCyL4jxLN9w87WG20GqeEIAaUCupjKmn8U";
+const FOLDER_ID = "1qEfxwXgPcvEPRlBKNNecsHaqFSRrAjTE";
+const PAGE_SIZE = 24;
+const SKELETON_COUNT = 12;
+
+/* ================= STATE ================= */
+let nextPageToken = null;
+let loading = false;
+
+const gallery  = document.getElementById("gallery");
+const sentinel = document.getElementById("sentinel");
+
+const modal     = document.getElementById("modal");
+const slider    = document.getElementById("slider");
+const prevImg   = document.getElementById("prevImg");
+const currentImg= document.getElementById("currentImg");
+const nextImg   = document.getElementById("nextImg");
+
+let modalImageIds = [];
+let currentIndex = 0;
+
+/* ================= UTIL ================= */
+function extractNumber(name){
+  const m = name.match(/\d+/g);
+  return m ? parseInt(m[m.length-1],10) : 0;
 }
 
 /* ================= SKELETON ================= */
@@ -10,7 +171,6 @@ function showSkeleton(){
     gallery.appendChild(sk);
   }
 }
-
 function removeSkeleton(){
   document.querySelectorAll(".skeleton").forEach(s=>s.remove());
 }
@@ -39,7 +199,6 @@ async function loadNextImages(){
   const data = await res.json();
 
   nextPageToken = data.nextPageToken || null;
-
   removeSkeleton();
 
   data.files
@@ -56,20 +215,29 @@ function addImage(file){
   modalImageIds.push(file.id);
 
   const img = document.createElement("img");
-  img.id  = `img-${file.id}`;
+  img.id = `img-${file.id}`;
   img.src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w500`;
   img.loading = "lazy";
-  img.style.objectFit = "cover";
-  img.style.cursor = "pointer";
-
   img.onclick = ()=>openModal(file.id);
+
   gallery.appendChild(img);
 }
 
-/* ================= MODAL ================= */
+/* ================= MODAL LOGIC ================= */
+function setModalImages(){
+  const prev = (currentIndex - 1 + modalImageIds.length) % modalImageIds.length;
+  const next = (currentIndex + 1) % modalImageIds.length;
+
+  prevImg.src    = `https://lh3.googleusercontent.com/d/${modalImageIds[prev]}`;
+  currentImg.src = `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
+  nextImg.src    = `https://lh3.googleusercontent.com/d/${modalImageIds[next]}`;
+}
+
 function openModal(id){
   currentIndex = modalImageIds.indexOf(id);
-  modalImg.src = `https://lh3.googleusercontent.com/d/${id}`;
+  setModalImages();
+  slider.style.transition = "none";
+  slider.style.transform = "translateX(-100%)";
   modal.style.display = "flex";
   document.body.classList.add("modal-open");
 }
@@ -81,23 +249,42 @@ modal.onclick = e=>{
   }
 };
 
+/* ================= KEYBOARD ================= */
 document.addEventListener("keydown", e=>{
   if(modal.style.display !== "flex") return;
 
-  if(e.key === "ArrowRight"){
-    currentIndex = (currentIndex + 1) % modalImageIds.length;
-  }
-  if(e.key === "ArrowLeft"){
-    currentIndex = (currentIndex - 1 + modalImageIds.length) % modalImageIds.length;
-  }
+  if(e.key === "ArrowRight") slideNext();
+  if(e.key === "ArrowLeft") slidePrev();
   if(e.key === "Escape"){
     modal.style.display = "none";
-    return;
+    document.body.classList.remove("modal-open");
   }
-  modalImg.src = `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
 });
 
-  /* ================= MOBILE SWIPE ================= */
+/* ================= SLIDE FUNCTIONS ================= */
+function slideNext(){
+  slider.style.transition = "transform .25s ease";
+  slider.style.transform = "translateX(-200%)";
+  setTimeout(()=>{
+    currentIndex = (currentIndex + 1) % modalImageIds.length;
+    setModalImages();
+    slider.style.transition = "none";
+    slider.style.transform = "translateX(-100%)";
+  },250);
+}
+
+function slidePrev(){
+  slider.style.transition = "transform .25s ease";
+  slider.style.transform = "translateX(0%)";
+  setTimeout(()=>{
+    currentIndex = (currentIndex - 1 + modalImageIds.length) % modalImageIds.length;
+    setModalImages();
+    slider.style.transition = "none";
+    slider.style.transform = "translateX(-100%)";
+  },250);
+}
+
+/* ================= TOUCH SWIPE ================= */
 let startX = 0;
 let deltaX = 0;
 let isSwiping = false;
@@ -120,27 +307,11 @@ modal.addEventListener("touchend", ()=>{
   isSwiping = false;
 
   if(Math.abs(deltaX) > THRESHOLD){
-    slider.style.transition = "transform .25s ease";
-
-    if(deltaX < 0){
-      slider.style.transform = "translateX(-200%)"; // next
-      currentIndex = (currentIndex + 1) % modalImageIds.length;
-    }else{
-      slider.style.transform = "translateX(0%)"; // prev
-      currentIndex = (currentIndex - 1 + modalImageIds.length) % modalImageIds.length;
-    }
-
-    setTimeout(()=>{
-      setModalImages();
-      slider.style.transition = "none";
-      slider.style.transform = "translateX(-100%)";
-    },250);
-
+    deltaX < 0 ? slideNext() : slidePrev();
   }else{
     slider.style.transition = "transform .2s ease";
     slider.style.transform = "translateX(-100%)";
   }
-
   deltaX = 0;
 });
 
