@@ -6,15 +6,13 @@
 <title>FyLinx Gallery</title>
 
 <style>
-/* ================= BASE ================= */
 body{
   margin:0;
-  font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+  font-family:system-ui,sans-serif;
   background:#fff;
   color:#111;
 }
 
-/* ================= HEADER ================= */
 header{
   display:flex;
   justify-content:space-between;
@@ -23,18 +21,9 @@ header{
   border-bottom:1px solid #eee;
 }
 
-header h1{
-  font-size:14px;
-  margin:0;
-  letter-spacing:1px;
-}
+header h1{font-size:14px;margin:0}
+header span{font-size:12px;color:#777}
 
-header span{
-  font-size:12px;
-  color:#777;
-}
-
-/* ================= GALLERY ================= */
 .gallery{
   display:grid;
   grid-template-columns:repeat(3,1fr);
@@ -42,41 +31,18 @@ header span{
   padding:6px;
 }
 
-@media(min-width:600px){
-  .gallery{grid-template-columns:repeat(4,1fr);}
-}
-@media(min-width:1024px){
-  .gallery{grid-template-columns:repeat(6,1fr);}
-}
+@media(min-width:600px){.gallery{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:1024px){.gallery{grid-template-columns:repeat(6,1fr)}}
 
-.gallery img,
-.skeleton{
+.gallery img{
   width:100%;
   aspect-ratio:1/1;
-  border-radius:4px;
   object-fit:cover;
+  border-radius:4px;
+  cursor:pointer;
 }
 
-/* ================= SKELETON ================= */
-.skeleton{
-  background:#eee;
-  animation:pulse 1.4s ease-in-out infinite;
-}
-@keyframes pulse{
-  0%{opacity:.6}
-  50%{opacity:1}
-  100%{opacity:.6}
-}
-
-/* ================= FOOTER ================= */
-footer{
-  text-align:center;
-  font-size:11px;
-  padding:14px;
-  color:#999;
-}
-
-/* ================= MODAL ================= */
+/* ===== MODAL ===== */
 .modal{
   position:fixed;
   inset:0;
@@ -84,16 +50,16 @@ footer{
   display:none;
   justify-content:center;
   align-items:center;
+  overflow:hidden;
   z-index:10;
 }
-
 
 .slider{
   display:flex;
   width:300%;
   height:100%;
   transform:translateX(-100%);
-  transition:transform .25s ease;
+  transition:transform .35s cubic-bezier(.22,.61,.36,1);
 }
 
 .slider img{
@@ -102,14 +68,9 @@ footer{
   max-height:100vh;
   margin:auto;
   object-fit:contain;
-  pointer-events:auto;
 }
 
-body.modal-open{
-  overflow:hidden;
-}
-
-/* ================= SENTINEL ================= */
+body.modal-open{overflow:hidden}
 #sentinel{height:1px}
 </style>
 </head>
@@ -124,9 +85,6 @@ body.modal-open{
 <div class="gallery" id="gallery"></div>
 <div id="sentinel"></div>
 
-<footer>© FyLinx</footer>
-
-<!-- ================= MODAL ================= -->
 <div class="modal" id="modal">
   <div class="slider" id="slider">
     <img id="prevImg">
@@ -136,125 +94,82 @@ body.modal-open{
 </div>
 
 <script>
-/* ================= CONFIG ================= */
-const API_KEY   = "AIzaSyCyL4jxLN9w87WG20GqeEIAaUCupjKmn8U";
-const FOLDER_ID = "1qEfxwXgPcvEPRlBKNNecsHaqFSRrAjTE";
-const PAGE_SIZE = 24;
-const SKELETON_COUNT = 12;
+const API_KEY="AIzaSyCyL4jxLN9w87WG20GqeEIAaUCupjKmn8U";
+const FOLDER_ID="1qEfxwXgPcvEPRlBKNNecsHaqFSRrAjTE";
+const PAGE_SIZE=24;
 
-/* ================= STATE ================= */
-let nextPageToken = null;
-let loading = false;
+const gallery=document.getElementById("gallery");
+const sentinel=document.getElementById("sentinel");
 
-const gallery  = document.getElementById("gallery");
-const sentinel = document.getElementById("sentinel");
+const modal=document.getElementById("modal");
+const slider=document.getElementById("slider");
+const prevImg=document.getElementById("prevImg");
+const currentImg=document.getElementById("currentImg");
+const nextImg=document.getElementById("nextImg");
 
-const modal = document.getElementById("modal");
-const slider = document.getElementById("slider");
-const prevImg = document.getElementById("prevImg");
-const currentImg = document.getElementById("currentImg");
-const nextImg = document.getElementById("nextImg");
+let modalImageIds=[];
+let currentIndex=0;
+let nextPageToken=null;
+let loading=false;
 
-let modalImageIds = [];
-let currentIndex = 0;
-
-/* ================= UTIL ================= */
-function extractNumber(name){
-  const m = name.match(/\d+/g);
-  return m ? parseInt(m[m.length-1],10) : 0;
-}
-
-/* ================= SKELETON ================= */
-function showSkeleton(){
-  for(let i=0;i<SKELETON_COUNT;i++){
-    const sk=document.createElement("div");
-    sk.className="skeleton";
-    gallery.appendChild(sk);
-  }
-}
-function removeSkeleton(){
-  document.querySelectorAll(".skeleton").forEach(s=>s.remove());
-}
-
-/* ================= LOAD ================= */
+/* ===== LOAD IMAGES ===== */
 async function loadNextImages(){
   if(loading) return;
   loading=true;
-  showSkeleton();
 
   const query=encodeURIComponent(
     `'${FOLDER_ID}' in parents and mimeType contains 'image/'`
   );
 
-  let url=
-    `https://www.googleapis.com/drive/v3/files?`+
-    `q=${query}`+
-    `&orderBy=name desc`+
-    `&pageSize=${PAGE_SIZE}`+
-    `&fields=nextPageToken,files(id,name)`+
-    `&key=${API_KEY}`;
-
+  let url=`https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=name desc&pageSize=${PAGE_SIZE}&fields=nextPageToken,files(id,name)&key=${API_KEY}`;
   if(nextPageToken) url+=`&pageToken=${nextPageToken}`;
 
   const res=await fetch(url);
   const data=await res.json();
-
   nextPageToken=data.nextPageToken||null;
-  removeSkeleton();
 
-  data.files
-    .sort((a,b)=>extractNumber(b.name)-extractNumber(a.name))
-    .forEach(addImage);
-
+  data.files.forEach(addImage);
   loading=false;
 }
 
-/* ================= ADD IMAGE ================= */
 function addImage(file){
-  if(document.getElementById("img-"+file.id)) return;
-
   modalImageIds.push(file.id);
+  const idx=modalImageIds.length-1;
 
   const img=document.createElement("img");
-  img.id="img-"+file.id;
   img.src=`https://drive.google.com/thumbnail?id=${file.id}&sz=w500`;
-  img.loading="lazy";
-  img.onclick=()=>openModalByIndex(modalImageIds.length-1);
+  img.onclick=()=>openModal(idx);
   gallery.appendChild(img);
 }
 
-/* ================= MODAL LOGIC ================= */
-function updateSlider(){
-  const len=modalImageIds.length;
-  const prev = currentIndex > 0 ? currentIndex - 1 : null;
-const next = currentIndex < len - 1 ? currentIndex + 1 : null;
-
-prevImg.src = prev !== null
-  ? `https://lh3.googleusercontent.com/d/${modalImageIds[prev]}`
-  : "";
-
-nextImg.src = next !== null
-  ? `https://lh3.googleusercontent.com/d/${modalImageIds[next]}`
-  : "";
-
-  prevImg.src=`https://lh3.googleusercontent.com/d/${modalImageIds[prev]}`;
-  currentImg.src=`https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
-  nextImg.src=`https://lh3.googleusercontent.com/d/${modalImageIds[next]}`;
-
-  slider.style.transition="none";
-  slider.style.transform="translateX(-100%)";
-}
-
-function openModalByIndex(i){
-  currentIndex=i;
+/* ===== MODAL ===== */
+function openModal(index){
+  currentIndex=index;
   updateSlider();
   modal.style.display="flex";
   document.body.classList.add("modal-open");
 }
 
-/* ================= TAP BLACK AREA TO CLOSE ================= */
-slider.addEventListener("click",e=>e.stopPropagation());
+function updateSlider(){
+  const len=modalImageIds.length;
 
+  prevImg.src = currentIndex>0
+    ? `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex-1]}`
+    : "";
+
+  currentImg.src =
+    `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
+
+  nextImg.src = currentIndex<len-1
+    ? `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex+1]}`
+    : "";
+
+  slider.style.transition="none";
+  slider.style.transform="translateX(-100%)";
+}
+
+/* ===== TAP BLACK CLOSE ===== */
+slider.addEventListener("click",e=>e.stopPropagation());
 modal.addEventListener("pointerdown",e=>{
   if(e.target===modal){
     modal.style.display="none";
@@ -262,24 +177,9 @@ modal.addEventListener("pointerdown",e=>{
   }
 });
 
-/* ================= KEYBOARD ================= */
-document.addEventListener("keydown",e=>{
-  if(modal.style.display!=="block") return;
-
-  if(e.key==="ArrowRight") currentIndex++;
-  if(e.key==="ArrowLeft") currentIndex--;
-  if(e.key==="Escape"){
-    modal.style.display="none";
-    document.body.classList.remove("modal-open");
-    return;
-  }
-  currentIndex=(currentIndex+modalImageIds.length)%modalImageIds.length;
-  updateSlider();
-});
-
-/* ================= REAL-TIME CONNECTED SWIPE ================= */
+/* ===== CONNECTED SWIPE ===== */
 let startX=0, deltaX=0, swiping=false;
-const THRESHOLD=60;
+const THRESHOLD=70;
 
 modal.addEventListener("touchstart",e=>{
   startX=e.touches[0].clientX;
@@ -294,45 +194,30 @@ modal.addEventListener("touchmove",e=>{
 },{passive:true});
 
 modal.addEventListener("touchend",()=>{
-  // JIKA GERAK TERLALU SIKIT → ANGAP TAP, JANGAN BUAT APA-APA
-if (Math.abs(deltaX) < 10) {
-  slider.style.transition = "transform .25s ease";
-  slider.style.transform = "translateX(-100%)";
-  return;
-}
   if(!swiping) return;
   swiping=false;
 
-  slider.style.transition = "transform .35s cubic-bezier(.22,.61,.36,1)";
+  slider.style.transition="transform .35s cubic-bezier(.22,.61,.36,1)";
 
-  if (Math.abs(deltaX) > THRESHOLD) {
-  if (deltaX < 0 && currentIndex < modalImageIds.length - 1) {
-    currentIndex++;
-  } 
-  else if (deltaX > 0 && currentIndex > 0) {
-    currentIndex--;
-  } 
-  else {
-    // HUJUNG → BOUNCE BALIK
-    slider.style.transform = "translateX(-100%)";
+  if(Math.abs(deltaX)<THRESHOLD){
+    slider.style.transform="translateX(-100%)";
     return;
   }
-}
 
-  currentIndex=(currentIndex+modalImageIds.length)%modalImageIds.length;
+  if(deltaX<0 && currentIndex<modalImageIds.length-1){
+    currentIndex++;
+  }else if(deltaX>0 && currentIndex>0){
+    currentIndex--;
+  }
+
   updateSlider();
 });
 
-/* ================= INFINITE SCROLL ================= */
-const observer=new IntersectionObserver(e=>{
-  if(e[0].isIntersecting && nextPageToken){
-    loadNextImages();
-  }
-},{rootMargin:"300px"});
+/* ===== INFINITE SCROLL ===== */
+new IntersectionObserver(e=>{
+  if(e[0].isIntersecting && nextPageToken) loadNextImages();
+},{rootMargin:"300px"}).observe(sentinel);
 
-observer.observe(sentinel);
-
-/* ================= INIT ================= */
 loadNextImages();
 </script>
 
