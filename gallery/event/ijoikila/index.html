@@ -72,6 +72,19 @@ header span{font-size:12px;color:#777}
 
 body.modal-open{overflow:hidden}
 #sentinel{height:1px}
+
+.modal{
+  pointer-events: auto;
+}
+
+.gallery{
+  pointer-events: auto;
+}
+
+body.modal-open .gallery{
+  pointer-events: none;
+}
+
 </style>
 </head>
 
@@ -99,7 +112,7 @@ const FOLDER_ID="1qEfxwXgPcvEPRlBKNNecsHaqFSRrAjTE";
 const PAGE_SIZE=24;
 
 const gallery=document.getElementById("gallery");
-const sentinel=document.getElementById("sentinel");
+const sentinel=document.getElwementById("sentinel");
 
 const modal=document.getElementById("modal");
 const slider=document.getElementById("slider");
@@ -170,12 +183,16 @@ function updateSlider(){
 
 /* ===== TAP BLACK CLOSE ===== */
 slider.addEventListener("click",e=>e.stopPropagation());
-modal.addEventListener("pointerdown",e=>{
-  if(e.target===modal){
-    modal.style.display="none";
-    document.body.classList.remove("modal-open");
+modal.addEventListener("click", e => {
+  if (e.target === modal) {
+    e.stopPropagation();
+    closeModal();
   }
 });
+function closeModal(){
+  modal.style.display = "none";
+  document.body.classList.remove("modal-open");
+}
 
 /* ===== CONNECTED SWIPE ===== */
 let startX=0, deltaX=0, swiping=false;
