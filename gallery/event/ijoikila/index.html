@@ -13,7 +13,7 @@ body{
   color:#111;
 }
 
-/* ===== HEADER ===== */
+/* HEADER */
 header{
   position:sticky;
   top:0;
@@ -28,7 +28,7 @@ header{
 header h1{font-size:14px;margin:0}
 header span{font-size:12px;color:#777}
 
-/* ===== GALLERY ===== */
+/* GALLERY */
 .gallery{
   display:grid;
   grid-template-columns:repeat(3,1fr);
@@ -46,13 +46,12 @@ header span{font-size:12px;color:#777}
   cursor:pointer;
 }
 
-/* sentinel */
 #sentinel{
   grid-column:1/-1;
   height:1px;
 }
 
-/* ===== MODAL ===== */
+/* MODAL */
 .modal{
   position:fixed;
   inset:0;
@@ -60,14 +59,16 @@ header span{font-size:12px;color:#777}
   z-index:20;
 }
 
-/* click-to-close layer */
+/* BACKDROP */
 .backdrop{
   position:absolute;
   inset:0;
   background:rgba(0,0,0,.92);
+  z-index:1;
+  pointer-events:auto;
 }
 
-/* ===== SLIDER ===== */
+/* SLIDER */
 .slider{
   position:relative;
   display:flex;
@@ -75,14 +76,14 @@ header span{font-size:12px;color:#777}
   height:100%;
   transform:translateX(-100vw);
   transition:transform .35s cubic-bezier(.22,.61,.36,1);
-  pointer-events:auto;
+  z-index:2;
 }
 
 .slide{
   width:100vw;
   display:flex;
-  align-items:center;
   justify-content:center;
+  align-items:center;
 }
 
 .slide img{
@@ -91,9 +92,7 @@ header span{font-size:12px;color:#777}
   object-fit:contain;
 }
 
-body.modal-open{
-  overflow:hidden;
-}
+body.modal-open{overflow:hidden}
 </style>
 </head>
 
@@ -137,7 +136,7 @@ let currentIndex=0;
 let nextPageToken=null;
 let loading=false;
 
-/* ===== LOAD IMAGES ===== */
+/* LOAD */
 async function loadNextImages(){
   if(loading) return;
   loading=true;
@@ -150,31 +149,40 @@ async function loadNextImages(){
   const data=await res.json();
   nextPageToken=data.nextPageToken||null;
 
-  data.files.forEach(file=>{
-    modalImageIds.push(file.id);
+  data.files.forEach(f=>{
+    modalImageIds.push(f.id);
     const i=modalImageIds.length-1;
     const img=document.createElement("img");
-    img.src=`https://drive.google.com/thumbnail?id=${file.id}&sz=w500`;
+    img.src=`https://drive.google.com/thumbnail?id=${f.id}&sz=w500`;
     img.onclick=()=>openModal(i);
     gallery.insertBefore(img,sentinel);
   });
 
   loading=false;
+  ensureScrollable();
 }
 
-/* ===== MODAL ===== */
+/* ENSURE DESKTOP SCROLL */
+function ensureScrollable(){
+  if(
+    nextPageToken &&
+    document.documentElement.scrollHeight <= window.innerHeight + 50
+  ){
+    loadNextImages();
+  }
+}
+
+/* MODAL */
 function openModal(i){
   currentIndex=i;
   updateSlider();
   modal.style.display="block";
   document.body.classList.add("modal-open");
 }
-
 function closeModal(){
   modal.style.display="none";
   document.body.classList.remove("modal-open");
 }
-
 backdrop.onclick=closeModal;
 
 function updateSlider(){
@@ -182,51 +190,12 @@ function updateSlider(){
   prevImg.src = currentIndex>0 ? `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex-1]}` : "";
   currentImg.src = `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
   nextImg.src = currentIndex<l-1 ? `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex+1]}` : "";
-
   slider.style.transition="none";
   slider.style.transform="translateX(-100vw)";
-  requestAnimationFrame(()=>{
-    slider.style.transition="transform .35s cubic-bezier(.22,.61,.36,1)";
-  });
+  requestAnimationFrame(()=>slider.style.transition="transform .35s cubic-bezier(.22,.61,.36,1)");
 }
 
-/* ===== SWIPE ===== */
-let startX=0,dx=0,swipe=false;
-const TH=70;
-
-modal.addEventListener("touchstart",e=>{
-  startX=e.touches[0].clientX;
-  swipe=true;
-},{passive:true});
-
-modal.addEventListener("touchmove",e=>{
-  if(!swipe) return;
-  dx=e.touches[0].clientX-startX;
-  slider.style.transform=`translateX(calc(-100vw + ${dx}px))`;
-},{passive:true});
-
-modal.addEventListener("touchend",()=>{
-  if(!swipe) return;
-  swipe=false;
-
-  if(Math.abs(dx)<TH){
-    slider.style.transform="translateX(-100vw)";
-    return;
-  }
-  if(dx<0 && currentIndex<modalImageIds.length-1) currentIndex++;
-  if(dx>0 && currentIndex>0) currentIndex--;
-  updateSlider();
-});
-
-/* ===== KEYBOARD ===== */
-window.addEventListener("keydown",e=>{
-  if(modal.style.display!=="block") return;
-  if(e.key==="Escape") closeModal();
-  if(e.key==="ArrowRight" && currentIndex<modalImageIds.length-1){currentIndex++;updateSlider();}
-  if(e.key==="ArrowLeft" && currentIndex>0){currentIndex--;updateSlider();}
-});
-
-/* ===== INFINITE SCROLL ===== */
+/* SCROLL OBSERVER */
 new IntersectionObserver(e=>{
   if(e[0].isIntersecting && nextPageToken) loadNextImages();
 },{rootMargin:"400px"}).observe(sentinel);
