@@ -56,31 +56,41 @@ header span{font-size:12px;color:#777}
 .modal{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,.92);
   display:none;
-  justify-content:center;
-  align-items:center;
-  overflow:hidden;
-  z-index:10;
+  z-index:20;
+}
+
+/* click-to-close layer */
+.backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,.92);
 }
 
 /* ===== SLIDER ===== */
 .slider{
+  position:relative;
   display:flex;
   width:300vw;
-  height:100vh;
+  height:100%;
   transform:translateX(-100vw);
   transition:transform .35s cubic-bezier(.22,.61,.36,1);
+  pointer-events:auto;
 }
 
-.slider img{
+.slide{
   width:100vw;
-  height:100vh;
-  object-fit:contain;
-  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
-/* lock background scroll only */
+.slide img{
+  max-width:96vw;
+  max-height:90vh;
+  object-fit:contain;
+}
+
 body.modal-open{
   overflow:hidden;
 }
@@ -99,10 +109,11 @@ body.modal-open{
 </div>
 
 <div class="modal" id="modal">
+  <div class="backdrop" id="backdrop"></div>
   <div class="slider" id="slider">
-    <img id="prevImg">
-    <img id="currentImg">
-    <img id="nextImg">
+    <div class="slide"><img id="prevImg"></div>
+    <div class="slide"><img id="currentImg"></div>
+    <div class="slide"><img id="nextImg"></div>
   </div>
 </div>
 
@@ -115,6 +126,7 @@ const gallery=document.getElementById("gallery");
 const sentinel=document.getElementById("sentinel");
 
 const modal=document.getElementById("modal");
+const backdrop=document.getElementById("backdrop");
 const slider=document.getElementById("slider");
 const prevImg=document.getElementById("prevImg");
 const currentImg=document.getElementById("currentImg");
@@ -130,52 +142,46 @@ async function loadNextImages(){
   if(loading) return;
   loading=true;
 
-  const query=encodeURIComponent(
-    `'${FOLDER_ID}' in parents and mimeType contains 'image/'`
-  );
-
-  let url=`https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=name desc&pageSize=${PAGE_SIZE}&fields=nextPageToken,files(id)&key=${API_KEY}`;
+  const q=encodeURIComponent(`'${FOLDER_ID}' in parents and mimeType contains 'image/'`);
+  let url=`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=name desc&pageSize=${PAGE_SIZE}&fields=nextPageToken,files(id)&key=${API_KEY}`;
   if(nextPageToken) url+=`&pageToken=${nextPageToken}`;
 
   const res=await fetch(url);
   const data=await res.json();
   nextPageToken=data.nextPageToken||null;
 
-  data.files.forEach(addImage);
+  data.files.forEach(file=>{
+    modalImageIds.push(file.id);
+    const i=modalImageIds.length-1;
+    const img=document.createElement("img");
+    img.src=`https://drive.google.com/thumbnail?id=${file.id}&sz=w500`;
+    img.onclick=()=>openModal(i);
+    gallery.insertBefore(img,sentinel);
+  });
+
   loading=false;
 }
 
-function addImage(file){
-  modalImageIds.push(file.id);
-  const idx=modalImageIds.length-1;
-
-  const img=document.createElement("img");
-  img.src=`https://drive.google.com/thumbnail?id=${file.id}&sz=w500`;
-  img.onclick=()=>openModal(idx);
-  gallery.insertBefore(img, sentinel);
-}
-
 /* ===== MODAL ===== */
-function openModal(index){
-  currentIndex=index;
+function openModal(i){
+  currentIndex=i;
   updateSlider();
-  modal.style.display="flex";
+  modal.style.display="block";
   document.body.classList.add("modal-open");
 }
 
+function closeModal(){
+  modal.style.display="none";
+  document.body.classList.remove("modal-open");
+}
+
+backdrop.onclick=closeModal;
+
 function updateSlider(){
-  const len=modalImageIds.length;
-
-  prevImg.src = currentIndex>0
-    ? `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex-1]}`
-    : "";
-
-  currentImg.src =
-    `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
-
-  nextImg.src = currentIndex<len-1
-    ? `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex+1]}`
-    : "";
+  const l=modalImageIds.length;
+  prevImg.src = currentIndex>0 ? `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex-1]}` : "";
+  currentImg.src = `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex]}`;
+  nextImg.src = currentIndex<l-1 ? `https://lh3.googleusercontent.com/d/${modalImageIds[currentIndex+1]}` : "";
 
   slider.style.transition="none";
   slider.style.transform="translateX(-100vw)";
@@ -184,60 +190,40 @@ function updateSlider(){
   });
 }
 
-/* close modal */
-modal.addEventListener("click",()=>{
-  closeModal();
-});
-
-/* prevent close when clicking image */
-slider.addEventListener("click",e=>{
-  e.stopPropagation();
-});
-
-function closeModal(){
-  modal.style.display="none";
-  document.body.classList.remove("modal-open");
-}
-
 /* ===== SWIPE ===== */
-let startX=0, deltaX=0, swiping=false;
-const THRESHOLD=70;
+let startX=0,dx=0,swipe=false;
+const TH=70;
 
 modal.addEventListener("touchstart",e=>{
   startX=e.touches[0].clientX;
-  swiping=true;
-  slider.style.transition="none";
+  swipe=true;
 },{passive:true});
 
 modal.addEventListener("touchmove",e=>{
-  if(!swiping) return;
-  deltaX=e.touches[0].clientX-startX;
-  slider.style.transform=`translateX(calc(-100vw + ${deltaX}px))`;
+  if(!swipe) return;
+  dx=e.touches[0].clientX-startX;
+  slider.style.transform=`translateX(calc(-100vw + ${dx}px))`;
 },{passive:true});
 
 modal.addEventListener("touchend",()=>{
-  if(!swiping) return;
-  swiping=false;
+  if(!swipe) return;
+  swipe=false;
 
-  slider.style.transition="transform .35s cubic-bezier(.22,.61,.36,1)";
-
-  if(Math.abs(deltaX)<THRESHOLD){
+  if(Math.abs(dx)<TH){
     slider.style.transform="translateX(-100vw)";
     return;
   }
-
-  if(deltaX<0 && currentIndex<modalImageIds.length-1) currentIndex++;
-  if(deltaX>0 && currentIndex>0) currentIndex--;
-
+  if(dx<0 && currentIndex<modalImageIds.length-1) currentIndex++;
+  if(dx>0 && currentIndex>0) currentIndex--;
   updateSlider();
 });
 
 /* ===== KEYBOARD ===== */
 window.addEventListener("keydown",e=>{
-  if(modal.style.display!=="flex") return;
+  if(modal.style.display!=="block") return;
+  if(e.key==="Escape") closeModal();
   if(e.key==="ArrowRight" && currentIndex<modalImageIds.length-1){currentIndex++;updateSlider();}
   if(e.key==="ArrowLeft" && currentIndex>0){currentIndex--;updateSlider();}
-  if(e.key==="Escape") closeModal();
 });
 
 /* ===== INFINITE SCROLL ===== */
