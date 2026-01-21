@@ -13,11 +13,11 @@ body{
   color:#111;
 }
 
+/* ===== HEADER ===== */
 header{
   position:sticky;
   top:0;
   z-index:5;
-
   display:flex;
   justify-content:space-between;
   align-items:center;
@@ -25,17 +25,16 @@ header{
   border-bottom:1px solid #eee;
   background:#fff;
 }
-
 header h1{font-size:14px;margin:0}
 header span{font-size:12px;color:#777}
 
+/* ===== GALLERY ===== */
 .gallery{
   display:grid;
   grid-template-columns:repeat(3,1fr);
   gap:4px;
   padding:6px;
 }
-
 @media(min-width:600px){.gallery{grid-template-columns:repeat(4,1fr)}}
 @media(min-width:1024px){.gallery{grid-template-columns:repeat(6,1fr)}}
 
@@ -45,6 +44,12 @@ header span{font-size:12px;color:#777}
   object-fit:cover;
   border-radius:4px;
   cursor:pointer;
+}
+
+/* sentinel MUST inside grid */
+#sentinel{
+  grid-column:1/-1;
+  height:1px;
 }
 
 /* ===== MODAL ===== */
@@ -59,37 +64,28 @@ header span{font-size:12px;color:#777}
   z-index:10;
 }
 
+/* ===== SLIDER ===== */
 .slider{
   display:flex;
-  width:300%;
-  height:100%;
-  transform:translateX(-100%);
+  width:300vw;
+  height:100vh;
+  transform:translateX(-100vw);
   transition:transform .35s cubic-bezier(.22,.61,.36,1);
 }
 
 .slider img{
-  width:100%;
-  max-width:100vw;
-  max-height:100vh;
-  margin:auto;
+  width:100vw;
+  height:100vh;
   object-fit:contain;
+  flex-shrink:0;
 }
 
-body.modal-open{overflow:hidden}
-#sentinel{height:1px}
-
-.modal{
-  pointer-events: auto;
+body.modal-open{
+  overflow:hidden;
 }
-
-.gallery{
-  pointer-events: auto;
-}
-
 body.modal-open .gallery{
-  pointer-events: none;
+  pointer-events:none;
 }
-
 </style>
 </head>
 
@@ -100,8 +96,9 @@ body.modal-open .gallery{
   <span>Ijoy & Kila</span>
 </header>
 
-<div class="gallery" id="gallery"></div>
-<div id="sentinel"></div>
+<div class="gallery" id="gallery">
+  <div id="sentinel"></div>
+</div>
 
 <div class="modal" id="modal">
   <div class="slider" id="slider">
@@ -139,7 +136,7 @@ async function loadNextImages(){
     `'${FOLDER_ID}' in parents and mimeType contains 'image/'`
   );
 
-  let url=`https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=name desc&pageSize=${PAGE_SIZE}&fields=nextPageToken,files(id,name)&key=${API_KEY}`;
+  let url=`https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=name desc&pageSize=${PAGE_SIZE}&fields=nextPageToken,files(id)&key=${API_KEY}`;
   if(nextPageToken) url+=`&pageToken=${nextPageToken}`;
 
   const res=await fetch(url);
@@ -157,7 +154,7 @@ function addImage(file){
   const img=document.createElement("img");
   img.src=`https://drive.google.com/thumbnail?id=${file.id}&sz=w500`;
   img.onclick=()=>openModal(idx);
-  gallery.appendChild(img);
+  gallery.insertBefore(img, sentinel);
 }
 
 /* ===== MODAL ===== */
@@ -183,23 +180,22 @@ function updateSlider(){
     : "";
 
   slider.style.transition="none";
-  slider.style.transform="translateX(-100%)";
+  slider.style.transform="translateX(-100vw)";
+
+  requestAnimationFrame(()=>{
+    slider.style.transition="transform .35s cubic-bezier(.22,.61,.36,1)";
+  });
 }
 
-/* ===== TAP BLACK CLOSE ===== */
-slider.addEventListener("click",e=>e.stopPropagation());
-modal.addEventListener("click", e => {
-  if (e.target === modal) {
-    e.stopPropagation();
-    closeModal();
-  }
+modal.addEventListener("click",e=>{
+  if(e.target===modal) closeModal();
 });
 function closeModal(){
-  modal.style.display = "none";
+  modal.style.display="none";
   document.body.classList.remove("modal-open");
 }
 
-/* ===== CONNECTED SWIPE ===== */
+/* ===== SWIPE ===== */
 let startX=0, deltaX=0, swiping=false;
 const THRESHOLD=70;
 
@@ -212,7 +208,7 @@ modal.addEventListener("touchstart",e=>{
 modal.addEventListener("touchmove",e=>{
   if(!swiping) return;
   deltaX=e.touches[0].clientX-startX;
-  slider.style.transform=`translateX(calc(-100% + ${deltaX}px))`;
+  slider.style.transform=`translateX(calc(-100vw + ${deltaX}px))`;
 },{passive:true});
 
 modal.addEventListener("touchend",()=>{
@@ -222,23 +218,28 @@ modal.addEventListener("touchend",()=>{
   slider.style.transition="transform .35s cubic-bezier(.22,.61,.36,1)";
 
   if(Math.abs(deltaX)<THRESHOLD){
-    slider.style.transform="translateX(-100%)";
+    slider.style.transform="translateX(-100vw)";
     return;
   }
 
-  if(deltaX<0 && currentIndex<modalImageIds.length-1){
-    currentIndex++;
-  }else if(deltaX>0 && currentIndex>0){
-    currentIndex--;
-  }
+  if(deltaX<0 && currentIndex<modalImageIds.length-1) currentIndex++;
+  if(deltaX>0 && currentIndex>0) currentIndex--;
 
   updateSlider();
+});
+
+/* ===== KEYBOARD ===== */
+window.addEventListener("keydown",e=>{
+  if(modal.style.display!=="flex") return;
+  if(e.key==="ArrowRight" && currentIndex<modalImageIds.length-1){currentIndex++;updateSlider();}
+  if(e.key==="ArrowLeft" && currentIndex>0){currentIndex--;updateSlider();}
+  if(e.key==="Escape") closeModal();
 });
 
 /* ===== INFINITE SCROLL ===== */
 new IntersectionObserver(e=>{
   if(e[0].isIntersecting && nextPageToken) loadNextImages();
-},{rootMargin:"300px"}).observe(sentinel);
+},{rootMargin:"400px"}).observe(sentinel);
 
 loadNextImages();
 </script>
