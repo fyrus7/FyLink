@@ -6,157 +6,185 @@
 <title>FyLinx Gallery</title>
 
 <style>
-/* RESET */
-*{
-  box-sizing:border-box;
+body{
   margin:0;
-  padding:0;
+  font-family:system-ui,sans-serif;
+  background:#fff;
+  color:#111;
 }
 
-html, body{
-  width:100%;
-  height:auto; /* ❗JANGAN 100vh */
-  overflow-x:hidden;
-  overflow-y:auto; /* scroll hanya body */
-  font-family:system-ui,sans-serif;
+/* ===== HEADER ===== */
+header{
+  position:sticky;
+  top:0;
+  z-index:5;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 16px;
+  border-bottom:1px solid #eee;
   background:#fff;
 }
 
-/* HEADER */
-header{
-  padding:16px;
-  font-size:20px;
-  font-weight:600;
-  border-bottom:1px solid #eee;
-}
+header h1{font-size:14px;margin:0}
+header span{font-size:12px;color:#777}
 
-/* GALLERY GRID */
+/* ===== GALLERY ===== */
 .gallery{
   display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(180px,1fr));
-  gap:6px;
+  grid-template-columns:repeat(3,1fr);
+  gap:4px;
   padding:6px;
 }
 
-/* THUMBNAIL */
+@media(min-width:600px){
+  .gallery{grid-template-columns:repeat(4,1fr)}
+}
+@media(min-width:1024px){
+  .gallery{grid-template-columns:repeat(6,1fr)}
+}
+
 .gallery img{
   width:100%;
   aspect-ratio:1/1;
   object-fit:cover;
-  display:block;
+  border-radius:4px;
   cursor:pointer;
 }
 
-/* SENTINEL */
-#sentinel{
-  grid-column:1/-1;
-  height:1px;
-  margin-bottom:40vh; /* pastikan scrollable awal */
-}
-
-/* MODAL SINGLE IMAGE */
+/* ===== MODAL ===== */
 .modal{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.9);
+  background:rgba(0,0,0,.92);
   display:none;
-  align-items:center;
   justify-content:center;
-  z-index:9999;
+  align-items:center;
+  z-index:20;
 }
 
 .modal img{
-  max-width:96vw;
-  max-height:90vh;
+  max-width:95vw;
+  max-height:95vh;
   object-fit:contain;
+}
+
+.modal-close{
+  position:absolute;
+  top:14px;
+  right:16px;
+  font-size:26px;
+  color:#fff;
+  cursor:pointer;
+  user-select:none;
+}
+
+/* ===== SENTINEL ===== */
+#sentinel{
+  height:120px;
 }
 </style>
 </head>
 
 <body>
 
-<header>FyLinx Gallery</header>
+<header>
+  <h1>FyLinx</h1>
+  <span>Ijoy & Kila</span>
+</header>
 
-<main>
-  <div class="gallery" id="gallery">
-    <div id="sentinel"></div>
-  </div>
-</main>
+<div class="gallery" id="gallery"></div>
+<div id="sentinel"></div>
 
+<!-- ===== MODAL ===== -->
 <div class="modal" id="modal">
+  <div class="modal-close" id="modalClose">✕</div>
   <img id="modalImg">
 </div>
 
 <script>
-const API_KEY="AIzaSyCyL4jxLN9w87WG20GqeEIAaUCupjKmn8U"; // ganti API key sebenar
-const FOLDER_ID="1qEfxwXgPcvEPRlBKNNecsHaqFSRrAjTE";  // ganti folder ID sebenar
-const PAGE_SIZE=24;
+const API_KEY = "AIzaSyCyL4jxLN9w87WG20GqeEIAaUCupjKmn8U";
+const FOLDER_ID = "1qEfxwXgPcvEPRlBKNNecsHaqFSRrAjTE";
+const PAGE_SIZE = 24;
 
 const gallery = document.getElementById("gallery");
 const sentinel = document.getElementById("sentinel");
+
 const modal = document.getElementById("modal");
 const modalImg = document.getElementById("modalImg");
+const modalClose = document.getElementById("modalClose");
 
+let imageIds = [];
 let nextPageToken = null;
 let loading = false;
-let imageIds = [];
 
 /* ===== LOAD IMAGES ===== */
 async function loadNextImages(){
   if(loading) return;
+  if(!nextPageToken && imageIds.length > 0) return;
+
   loading = true;
 
-  const query = encodeURIComponent(`'${FOLDER_ID}' in parents and mimeType contains 'image/'`);
-  let url = `https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=name desc&pageSize=${PAGE_SIZE}&fields=nextPageToken,files(id)&key=${API_KEY}`;
+  const query = encodeURIComponent(
+    `'${FOLDER_ID}' in parents and mimeType contains 'image/'`
+  );
+
+  let url =
+    `https://www.googleapis.com/drive/v3/files?q=${query}` +
+    `&orderBy=name desc&pageSize=${PAGE_SIZE}` +
+    `&fields=nextPageToken,files(id,name)` +
+    `&key=${API_KEY}`;
+
   if(nextPageToken) url += `&pageToken=${nextPageToken}`;
 
   const res = await fetch(url);
   const data = await res.json();
+
   nextPageToken = data.nextPageToken || null;
 
-  data.files.forEach(file => {
+  data.files.forEach(file=>{
     imageIds.push(file.id);
+
     const img = document.createElement("img");
     img.src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w500`;
-    img.loading = "lazy";
-    img.onclick = () => openModal(file.id);
-    gallery.insertBefore(img, sentinel);
+    img.onclick = ()=>openModal(file.id);
+    gallery.appendChild(img);
   });
 
   loading = false;
-
-  /* pastikan scrollable desktop awal */
-  if(nextPageToken && document.documentElement.scrollHeight <= window.innerHeight + 50){
-    loadNextImages();
-  }
 }
 
-/* ===== MODAL SINGLE IMAGE ===== */
+/* ===== MODAL ===== */
 function openModal(id){
   modalImg.src = `https://lh3.googleusercontent.com/d/${id}`;
   modal.style.display = "flex";
-  document.body.style.overflow = "hidden"; // lock scroll
 }
 
 function closeModal(){
   modal.style.display = "none";
   modalImg.src = "";
-  document.body.style.overflow = "auto"; // restore scroll
 }
 
-modal.addEventListener("click", closeModal);
-window.addEventListener("keydown", e => {
-  if(e.key === "Escape" && modal.style.display === "flex") closeModal();
+modalClose.onclick = closeModal;
+
+modal.addEventListener("click", e=>{
+  if(e.target === modal) closeModal();
 });
 
 /* ===== INFINITE SCROLL ===== */
-new IntersectionObserver(entries=>{
-  if(entries[0].isIntersecting && nextPageToken){
+const observer = new IntersectionObserver(entries=>{
+  if(entries[0].isIntersecting){
     loadNextImages();
   }
-},{rootMargin:"400px"}).observe(sentinel);
+},{
+  root:null,
+  rootMargin:"600px",
+  threshold:0
+});
 
-/* INITIAL LOAD */
+observer.observe(sentinel);
+
+/* ===== INIT ===== */
 loadNextImages();
 </script>
 
